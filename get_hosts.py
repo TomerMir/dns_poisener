@@ -1,5 +1,8 @@
 from scapy.all import *
 import math
+import logging
+
+logger = logging.getLogger("SPOFFER")
 
 def long2net(arg):
     return 32 - int(round(math.log(0xFFFFFFFF - arg, 2)))

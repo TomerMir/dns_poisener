@@ -6,6 +6,33 @@ from poisoner import kick_hosts, restore_hosts
 import os
 import sniffer
 import threading
+import logging
+from colorama import init, Fore
+import sys
+
+
+#libpcap!!!!!!!!!!
+
+white   = Fore.WHITE
+black   = Fore.BLACK
+red     = Fore.RED
+reset   = Fore.RESET
+blue    = Fore.BLUE
+cyan    = Fore.CYAN
+yellow  = Fore.YELLOW
+green   = Fore.GREEN
+magenta = Fore.MAGENTA
+
+init()
+logging.addLevelName(logging.CRITICAL, f"[{red}!!{reset}]")
+logging.addLevelName(logging.WARNING, f"[{red}!{reset}]")
+logging.addLevelName(logging.INFO, f"[{cyan}*{reset}]")
+logging.addLevelName(logging.DEBUG, f"[{magenta}*{reset}]")
+verbose = True
+logging.basicConfig(format=f"%(levelname)s %(message)s", level=logging.DEBUG if verbose else logging.INFO)
+logger = logging.getLogger("SPOFFER")
+logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
+
 
 
 def get_defult_gateway(iface):
@@ -43,31 +70,31 @@ def main():
         print(get_if_list())
         ifname = input("\nEnter your selected interface:\n")
         if ifname not in get_if_list():
-            print("Invalid interface")
+            logger.critical("Invalid interface")
             exit()
 
     if args.gwy:
         gateway_validated = re.search(r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$", args.gwy)
         if not bool(gateway_validated):
-            print("Invalid gateway IP!")
+            logger.critical("Invalid gateway IP!")
             exit()
         gateway = args.gwy
     
     if args.tip:
         tip_validated = re.search(r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$", args.tip)
         if not bool(tip_validated):
-            print("Invalid target IP!")
+            logger.critical("Invalid target IP!")
             exit()
         targets = [args.tip]
 
     else:
         if os.geteuid() != 0:
-            print("You need to be root to search hosts...\nYou can run this script with the --tip parameter to set the target ip manualy ")
+            logger.critical("You need to be root to search hosts...\nYou can run this script with the --tip parameter to set the target ip manualy ")
             exit()
-        print("Serching for online hosts...\n")
+        logger.info("Serching for online hosts...\n")
         ans = get_all_hosts(ifname)
         if not ans or len(ans) == 0:
-            print("No hosts...")
+            logger.critical("No hosts...")
             exit()
 
         for i in range(len(ans)):
@@ -75,7 +102,7 @@ def main():
                 del ans[i]
                 break
 
-        print(str(len(ans)) + " hosts found:\n")
+        logger.info(str(len(ans)) + " hosts found:\n")
         for i, host in enumerate(ans):
             print(str(i+1) + ": " + host[0] + " " + host[1])
         
@@ -90,15 +117,15 @@ def main():
 
             for index in indexes:
                 if not index.isdigit():
-                    print("Invalid input at: "+ index)
+                    logger.critical("Invalid input at: "+ index)
                     exit()
                 if int(index) > len(ans) or int(index) < 1:
-                    print("Index out of bounds at: "+ index)
+                    logger.critical("Index out of bounds at: "+ index)
                     exit()
                 try:
                     targets.append(ans[int(index)-1][0])
                 except Exception:
-                    print("Invalid input")
+                    logger.critical("Invalid input")
                     exit()
 
 
@@ -114,8 +141,9 @@ def main():
         kick_thread.start()
         sniff_thread.start()
         kick_thread.join()
-        exit()
-    
+        sniff_thread.join()
+        
+        
     except KeyboardInterrupt:
         restore_hosts(targets, gateway, targets_MAC, gateway_MAC)
         exit()
