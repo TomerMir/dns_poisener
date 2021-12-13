@@ -13,7 +13,7 @@ class Poisoner:
         self.gateway = gateway
         self.targets_mac = targets_MAC
         self.gateway_mac = gateway_MAC
-        self.exit_event = Event()
+        self.exit_event = Event() 
         self.stop = False
 
 
@@ -45,23 +45,22 @@ class Poisoner:
     
     def kick_hosts(self):
         try:
-            if self.stop:
-                self.exit_event.set()
-                return
-
             if not self.gateway_mac:
                 logger.critical("Can't find gateway's mac address")
                 exit()
 
             logger.info("Starting to kick...\n Press cntrl+c to stop")
             while True:
+                if self.stop:
+                    self.exit_event.set()
+                    return
+
                 for i, host in enumerate(self.hosts):
                     self.poison_host(host, self.gateway, self.targets_mac[i])
                     self.poison_host(self.gateway, host, self.gateway_mac)
                 time.sleep(2)
 
         except Exception:
-            logger.error("oops")
             self.exit_event.set()
             self.restore_hosts()
 
@@ -70,12 +69,13 @@ class Poisoner:
         for i, host in enumerate(self.hosts):
             self.restore(host, self.gateway, self.targets_mac[i] ,self.gateway_mac)
             self.restore(self.gateway, host, self.gateway_mac, self.targets_mac[i])
-        logger.info("Stopped...")
-    
+        logger.info("Stopped safely...")
+
 
     def start_kicking(self):
         self.thread = Thread(target=self.kick_hosts)
         self.thread.start()
+        self.exit_event.wait()
 
     def stop_kicking(self):
         self.stop = True
