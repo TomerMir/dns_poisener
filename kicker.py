@@ -2,9 +2,8 @@ from scapy.all import *
 import argparse
 import re
 from get_hosts import get_all_hosts
-from poisoner import kick_hosts, restore_hosts
+from poisoner import Poisoner
 import os
-import sniffer
 import threading
 import logging
 from colorama import init, Fore
@@ -135,18 +134,12 @@ def main():
 
 
     try:
-        sniff_thread = threading.Thread(name="Sniffer", target=sniffer.StartMITM, args= (targets, targets_MAC, gateway_MAC, ifname,))
-        kick_thread = threading.Thread(name="ARP spoofer", target=kick_hosts, args=(targets, gateway, targets_MAC, gateway_MAC,))
+        poisoner = Poisoner(targets, gateway, targets_MAC, gateway_MAC)
 
-        kick_thread.start()
-        sniff_thread.start()
-        kick_thread.join()
-        sniff_thread.join()
-        
+        poisoner.start_kicking()        
         
     except KeyboardInterrupt:
-        restore_hosts(targets, gateway, targets_MAC, gateway_MAC)
-        exit()
+        poisoner.stop_kicking()
 
 if __name__ == "__main__":
     main()
