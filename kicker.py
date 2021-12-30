@@ -4,10 +4,8 @@ import re
 from get_hosts import get_all_hosts
 from poisoner import Poisoner
 import os
-import threading
 import logging
 from colorama import init, Fore
-import sys
 
 
 #libpcap!!!!!!!!!!
@@ -103,7 +101,7 @@ def main():
 
         logger.info(str(len(ans)) + " hosts found:\n")
         for i, host in enumerate(ans):
-            print(str(i+1) + ": " + host[0] + " " + host[1])
+            print(str(i+1) + ": " + host[0] + "  " + host[1])
         
         print("Which host would you like to kick? Enter their indexes (starting from 1) seperated by space. (For example: 1 3 6)\nIf you want to attack all hosts enter \"all\"")
         hosts_to_kick = input()
@@ -119,7 +117,7 @@ def main():
                     logger.critical("Invalid input at: "+ index)
                     exit()
                 if int(index) > len(ans) or int(index) < 1:
-                    logger.critical("Index out of bounds at: "+ index)
+                    logger.critical("Index out of range at: "+ index)
                     exit()
                 try:
                     targets.append(ans[int(index)-1][0])

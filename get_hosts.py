@@ -18,7 +18,7 @@ def to_CIDR_notation(bytes_network, bytes_netmask):
     return net
 
 
-def scan_and_print_neighbors(net, interface, timeout=5):
+def scan_for_neighbors(net, interface, timeout=5):
     hosts = []
     try:
         ans, unans = arping(net, iface=interface, timeout=timeout, verbose=False)
@@ -52,4 +52,4 @@ def get_all_hosts(iface):
 
         net = to_CIDR_notation(network, netmask)
         if net:
-            return scan_and_print_neighbors(net, interface)
+            return scan_for_neighbors(net, interface)
